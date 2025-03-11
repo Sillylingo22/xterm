@@ -177,11 +177,57 @@
         color: #0ff;
         text-shadow: 0 0 5px #0f0;
         display: none;
-        z-index: 3; /* Above command list */
+        z-index: 3;
     }
     @keyframes flicker {
         0% { opacity: 0.98; }
         100% { opacity: 1; }
+    }
+    #matrixCanvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        pointer-events: none;
+        display: none;
+    }
+    #ghost {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 100px;
+        color: #0ff;
+        text-shadow: 0 0 10px #0f0;
+        display: none;
+        z-index: 3;
+    }
+    .spark {
+        position: absolute;
+        width: 5px;
+        height: 5px;
+        background: #0f0;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #0f0;
+        animation: sparkFade 1s ease-out forwards;
+    }
+    @keyframes sparkFade {
+        0% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0; transform: scale(0); }
+    }
+    @keyframes wave {
+        0% { transform: translateX(0); }
+        50% { transform: translateX(20px); }
+        100% { transform: translateX(0); }
+    }
+    @keyframes crash {
+        0% { transform: rotate(0deg); }
+        25% { transform: rotate(5deg); }
+        50% { transform: rotate(-5deg); }
+        75% { transform: rotate(5deg); }
+        100% { transform: rotate(0deg); }
     }
 </style>
 <body>
@@ -202,6 +248,13 @@
                 - VIEW CAM (if hacked)<br>
                 - INFO ME (shows your ID)<br>
                 - SOUND (toggles audio)<br>
+                - MATRIX (shows code rain for 5s)<br>
+                - SPARK (creates sparks)<br>
+                - DISCO (toggles party mode)<br>
+                - WAVE (waves the terminal)<br>
+                - CRASH (shakes the screen)<br>
+                - FLIP (flips the terminal)<br>
+                - BOOM (explosion of sparks)<br>
             </div>
         </div>
         <div>
@@ -211,6 +264,8 @@
         </div>
         <div id="userCounter">[*] Users Online: 1</div>
         <div id="creditPopup">This website was developed by Ghxstly (made with love)</div>
+        <canvas id="matrixCanvas"></canvas>
+        <div id="ghost">👻</div>
     </div>
 
     <script>
@@ -230,7 +285,8 @@
             isLocked: false,
             miniGame: null,
             access: { lights: false, cam: false },
-            lightsOn: false
+            lightsOn: false,
+            discoMode: false
         };
         let isOwner = false;
         const ownerPassword = 'gavin445';
@@ -239,6 +295,7 @@
         let commandHistory = [];
         let historyIndex = -1;
         const MAX_LINES = 50;
+        let soundInitialized = false;
 
         window.onload = () => {
             const saved = localStorage.getItem('ghxstlyXtermSave');
@@ -254,6 +311,13 @@
             focusInput();
             startCreditPopup();
             startUserCounter();
+            startRandomEvents();
+            document.body.addEventListener('click', () => {
+                if (!soundInitialized) {
+                    playSound('beep');
+                    soundInitialized = true;
+                }
+            }, { once: true });
         };
 
         document.addEventListener('keydown', (e) => {
@@ -294,7 +358,7 @@
                 if (i < text.length) {
                     output.textContent += text[i];
                     output.scrollTop = output.scrollHeight;
-                    if (gameState.soundOn) playBeep();
+                    if (gameState.soundOn && soundInitialized) playSound('beep');
                     i++;
                 } else {
                     clearInterval(interval);
@@ -304,18 +368,21 @@
             }, 50);
         }
 
-        function playBeep() {
-            const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
-            audio.play();
+        function playSound(type) {
+            const sounds = {
+                beep: 'data:audio/wav;base64,UklGRlIAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQAAACAAAAAARXhpZgAAAA==',
+                success: 'data:audio/wav;base64,UklGRlYAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAEAAAAAARXhpZgAAAA==',
+                error: 'data:audio/wav;base64,UklGRmIAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAGAAAAAARXhpZgAAAA=='
+            };
+            const audio = new Audio(sounds[type]);
+            audio.play().catch(e => console.log("Audio play failed:", e));
         }
 
         function startCreditPopup() {
             setInterval(() => {
                 if (Math.random() < 0.5) {
                     creditPopup.style.display = 'block';
-                    setTimeout(() => {
-                        creditPopup.style.display = 'none';
-                    }, 2000);
+                    setTimeout(() => creditPopup.style.display = 'none', 2000);
                 }
             }, 5000);
         }
@@ -328,6 +395,107 @@
                     userCounter.textContent = `[*] Users Online: ${userCount}`;
                 }
             }, 3000);
+        }
+
+        function startRandomEvents() {
+            setInterval(() => {
+                if (Math.random() < 0.1 && !gameState.miniGame) {
+                    const events = [
+                        () => {
+                            output.textContent += `[!] Intrusion detected! Type 'FIREWALL' to block.\n`;
+                            gameState.miniGame = { type: 'firewall', answer: 'FIREWALL' };
+                        },
+                        () => {
+                            output.textContent += `[!] Glitch detected! Enter 'REBOOT' to stabilize.\n`;
+                            gameState.miniGame = { type: 'glitch', answer: 'REBOOT' };
+                        }
+                    ];
+                    events[Math.floor(Math.random() * events.length)]();
+                    gameState.outputText = output.textContent;
+                    output.scrollTop = output.scrollHeight;
+                }
+            }, 10000);
+        }
+
+        function startMatrix() {
+            const canvas = document.getElementById('matrixCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*';
+            const fontSize = 16;
+            const columns = canvas.width / fontSize;
+            const drops = Array(Math.floor(columns)).fill(1);
+
+            function drawMatrix() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = gameState.terminalColor;
+                ctx.font = `${fontSize}px 'VT323', monospace`;
+                for (let i = 0; i < drops.length; i++) {
+                    const text = characters[Math.floor(Math.random() * characters.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+
+            canvas.style.display = 'block';
+            const matrixInterval = setInterval(drawMatrix, 50);
+            setTimeout(() => {
+                clearInterval(matrixInterval);
+                canvas.style.display = 'none';
+            }, 5000);
+        }
+
+        function createSparks(count = 20) {
+            for (let i = 0; i < count; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'spark';
+                const x = Math.random() * window.innerWidth;
+                const y = Math.random() * window.innerHeight;
+                spark.style.left = `${x}px`;
+                spark.style.top = `${y}px`;
+                document.body.appendChild(spark);
+                setTimeout(() => spark.remove(), 1000);
+            }
+        }
+
+        function toggleDisco() {
+            if (gameState.discoMode) {
+                clearInterval(gameState.discoInterval);
+                updateTerminalColor('#0f0');
+                document.body.style.background = '#000';
+            } else {
+                gameState.discoInterval = setInterval(() => {
+                    const colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+                    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                    updateTerminalColor(randomColor);
+                    document.body.style.background = colors[Math.floor(Math.random() * colors.length)];
+                }, 500);
+            }
+            gameState.discoMode = !gameState.discoMode;
+        }
+
+        function waveTerminal() {
+            gameContainer.style.animation = 'wave 1s ease-in-out 3';
+            setTimeout(() => gameContainer.style.animation = 'flicker 0.1s infinite alternate', 3000);
+        }
+
+        function crashScreen() {
+            document.body.style.animation = 'crash 0.5s ease-in-out';
+            setTimeout(() => document.body.style.animation = 'none', 500);
+        }
+
+        function flipTerminal() {
+            gameContainer.style.transition = 'transform 1s';
+            gameContainer.style.transform = 'rotate(180deg)';
+            setTimeout(() => {
+                gameContainer.style.transition = 'none';
+                gameContainer.style.transform = 'rotate(0deg)';
+            }, 2000);
         }
 
         function isValidColor(color) {
@@ -438,10 +606,13 @@
                 switch (action) {
                     case 'HACK':
                         if (parts[1] === 'LIGHTS') {
+                            if (gameState.soundOn && soundInitialized) playSound('success');
                             startLightsHack();
                         } else if (parts[1] === 'CAM') {
+                            if (gameState.soundOn && soundInitialized) playSound('success');
                             startCamHack();
                         } else {
+                            if (gameState.soundOn && soundInitialized) playSound('error');
                             output.textContent += `[-] Breach failed! Try HACK LIGHTS or CAM!\n`;
                         }
                         break;
@@ -449,22 +620,28 @@
                         if (parts[1] === 'LIGHTS') {
                             if (gameState.access.lights) {
                                 gameState.lightsOn = !gameState.lightsOn;
+                                if (gameState.soundOn && soundInitialized) playSound('success');
                                 output.textContent += `[+] Lights ${gameState.lightsOn ? 'ON' : 'OFF'}!\n`;
                             } else {
+                                if (gameState.soundOn && soundInitialized) playSound('error');
                                 output.textContent += `[-] Access denied! Hack lights first.\n`;
                             }
                         } else {
+                            if (gameState.soundOn && soundInitialized) playSound('error');
                             output.textContent += `[-] Invalid toggle! Try TOGGLE LIGHTS.\n`;
                         }
                         break;
                     case 'VIEW':
                         if (parts[1] === 'CAM') {
                             if (gameState.access.cam) {
+                                if (gameState.soundOn && soundInitialized) playSound('success');
                                 output.textContent += `[+] Camera feed: "Static... *flicker* ...all clear!"\n`;
                             } else {
+                                if (gameState.soundOn && soundInitialized) playSound('error');
                                 output.textContent += `[-] Access denied! Hack cam first.\n`;
                             }
                         } else {
+                            if (gameState.soundOn && soundInitialized) playSound('error');
                             output.textContent += `[-] Invalid view! Try VIEW CAM.\n`;
                         }
                         break;
@@ -477,7 +654,45 @@
                         break;
                     case 'SOUND':
                         gameState.soundOn = !gameState.soundOn;
+                        if (gameState.soundOn && !soundInitialized) {
+                            playSound('beep');
+                            soundInitialized = true;
+                        }
                         output.textContent += `[+] Sound ${gameState.soundOn ? 'enabled' : 'disabled'}!\n`;
+                        break;
+                    case 'MATRIX':
+                        output.textContent += `[+] Matrix rain incoming!\n`;
+                        startMatrix();
+                        break;
+                    case 'SPARK':
+                        createSparks(20);
+                        output.textContent += `[+] Sparks flying!\n`;
+                        break;
+                    case 'DISCO':
+                        toggleDisco();
+                        output.textContent += `[+] Disco mode ${gameState.discoMode ? 'ON' : 'OFF'}!\n`;
+                        break;
+                    case 'WAVE':
+                        waveTerminal();
+                        output.textContent += `[+] Terminal waving!\n`;
+                        break;
+                    case 'CRASH':
+                        crashScreen();
+                        output.textContent += `[+] System crashing!\n`;
+                        break;
+                    case 'FLIP':
+                        flipTerminal();
+                        output.textContent += `[+] Terminal flipped!\n`;
+                        break;
+                    case 'BOOM':
+                        createSparks(100);
+                        output.textContent += `[+] Explosion!\n`;
+                        break;
+                    case 'GHOST':
+                        const ghost = document.getElementById('ghost');
+                        ghost.style.display = 'block';
+                        setTimeout(() => ghost.style.display = 'none', 2000);
+                        output.textContent += `[+] Ghost in the machine!\n`;
                         break;
                     case 'HELP':
                         output.textContent += `\n[*] Use the command tab!\n${isOwner ? '[*] Admin Protocols: COLOR <color>, ALERT <text>, FLICKER <on/off>, BG <color>, LOCK, UNLOCK' : ''}\n`;
@@ -534,6 +749,15 @@
                             output.textContent += `[-] Feed locked! Out of guesses.\n`;
                             gameState.miniGame = null;
                         }
+                    }
+                    break;
+                case 'firewall':
+                case 'glitch':
+                    if (cmd.toUpperCase() === miniGame.answer) {
+                        output.textContent += `[+] ${miniGame.type === 'firewall' ? 'Intruder blocked!' : 'System stabilized!'}\n`;
+                        gameState.miniGame = null;
+                    } else {
+                        output.textContent += `[-] Wrong input! Try '${miniGame.answer}'.\n`;
                     }
                     break;
             }
