@@ -1,0 +1,613 @@
+<title>GhxstlyXterm</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+    body {
+        margin: 0;
+        background: #000;
+        color: #0f0;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+        position: relative;
+    }
+    #backgroundAnimation {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 1));
+        z-index: -1;
+        overflow: hidden;
+    }
+    #backgroundAnimation::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 200%;
+        background: repeating-linear-gradient(
+            to bottom,
+            transparent 0%,
+            transparent 2px,
+            rgba(0, 255, 0, 0.15) 2px,
+            rgba(0, 255, 0, 0.15) 4px
+        );
+        animation: scrollCode 8s linear infinite;
+    }
+    #backgroundAnimation::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 255, 0, 0.05);
+        animation: glitch 2s infinite;
+    }
+    @keyframes scrollCode {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-50%); }
+    }
+    @keyframes glitch {
+        0%, 100% { opacity: 0; }
+        50% { opacity: 0.1; }
+    }
+    #gameContainer {
+        width: 100vw;
+        height: 100vh;
+        padding: 30px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        z-index: 1;
+    }
+    #terminal {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        animation: flicker 0.1s infinite alternate;
+    }
+    #commandTab {
+        background: #111;
+        border: 2px solid #0f0;
+        padding: 5px 10px;
+        cursor: pointer;
+        font-family: 'VT323', monospace;
+        font-size: 20px;
+        color: #0ff;
+        text-shadow: 0 0 5px #0f0;
+        align-self: flex-start;
+        margin-top: 10px;
+        z-index: 2;
+    }
+    #commandList {
+        font-size: 20px;
+        font-family: 'VT323', monospace;
+        color: #0ff;
+        margin-top: 10px;
+        border: 2px dashed #0f0;
+        padding: 10px;
+        background: rgba(17, 17, 17, 0.9);
+        text-shadow: 0 0 5px #0f0;
+        display: none;
+        z-index: 2;
+    }
+    #commandList.active {
+        display: block;
+    }
+    #output {
+        flex-grow: 1;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        font-size: 24px;
+        line-height: 1.5;
+        background: rgba(17, 17, 17, 0.9);
+        padding: 10px;
+        border: 1px solid #0f0;
+        max-height: 70vh;
+    }
+    #input-line {
+        display: flex;
+        align-items: center;
+        margin-top: 20px;
+    }
+    #prompt {
+        color: #0f0;
+        margin-right: 10px;
+        font-size: 24px;
+    }
+    #input {
+        background: #111;
+        border: 2px solid #0f0;
+        color: #0f0;
+        font-family: 'Courier New', monospace;
+        font-size: 24px;
+        outline: none;
+        flex-grow: 1;
+        padding: 10px;
+        caret-color: #0f0;
+    }
+    button {
+        background: #222;
+        color: #0f0;
+        border: 2px solid #0f0;
+        padding: 10px 20px;
+        margin: 10px;
+        cursor: pointer;
+        font-family: 'Courier New', monospace;
+        font-size: 20px;
+        transition: background 0.3s, transform 0.1s;
+    }
+    button:hover {
+        background: #0f0;
+        color: #000;
+        transform: scale(1.1);
+    }
+    #clearButton {
+        display: none;
+        background: #400;
+        color: #f00;
+        border: 2px solid #f00;
+    }
+    #clearButton:hover {
+        background: #f00;
+        color: #000;
+    }
+    #userCounter {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 18px;
+        color: #0ff;
+        font-family: 'VT323', monospace;
+        text-shadow: 0 0 5px #0f0;
+        z-index: 2;
+    }
+    #creditPopup {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(17, 17, 17, 0.9);
+        border: 1px solid #0f0;
+        padding: 5px 10px;
+        font-family: 'VT323', monospace;
+        font-size: 16px;
+        color: #0ff;
+        text-shadow: 0 0 5px #0f0;
+        display: none;
+        z-index: 3; /* Above command list */
+    }
+    @keyframes flicker {
+        0% { opacity: 0.98; }
+        100% { opacity: 1; }
+    }
+</style>
+<body>
+    <div id="backgroundAnimation"></div>
+    <div id="gameContainer">
+        <div id="terminal">
+            <div id="output"></div>
+            <div id="input-line">
+                <span id="prompt">user@ghxstlyxterm:~$</span>
+                <input id="input" type="text">
+            </div>
+            <div id="commandTab" onclick="toggleCommands()">Show Commands</div>
+            <div id="commandList">
+                [*] GhxstlyXterm Commands:<br>
+                - HACK LIGHTS (overrides lights)<br>
+                - HACK CAM (taps into cameras)<br>
+                - TOGGLE LIGHTS (if hacked)<br>
+                - VIEW CAM (if hacked)<br>
+                - INFO ME (shows your ID)<br>
+                - SOUND (toggles audio)<br>
+            </div>
+        </div>
+        <div>
+            <button onclick="saveGame()">Save Session</button>
+            <button onclick="loadGame()">Load Session</button>
+            <button id="clearButton" onclick="clearTerminal()">Clear Terminal</button>
+        </div>
+        <div id="userCounter">[*] Users Online: 1</div>
+        <div id="creditPopup">This website was developed by Ghxstly (made with love)</div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const input = document.getElementById('input');
+        const gameContainer = document.getElementById('gameContainer');
+        const userCounter = document.getElementById('userCounter');
+        const commandList = document.getElementById('commandList');
+        const commandTab = document.getElementById('commandTab');
+        const creditPopup = document.getElementById('creditPopup');
+        const clearButton = document.getElementById('clearButton');
+        let gameState = { 
+            outputText: '', 
+            terminalColor: '#0f0', 
+            flickerOn: true,
+            soundOn: false,
+            isLocked: false,
+            miniGame: null,
+            access: { lights: false, cam: false },
+            lightsOn: false
+        };
+        let isOwner = false;
+        const ownerPassword = 'gavin445';
+        const userId = 'UserX';
+        let userCount = 1;
+        let commandHistory = [];
+        let historyIndex = -1;
+        const MAX_LINES = 50;
+
+        window.onload = () => {
+            const saved = localStorage.getItem('ghxstlyXtermSave');
+            if (saved) {
+                gameState = JSON.parse(saved);
+                output.textContent = gameState.outputText;
+                updateTerminalColor(gameState.terminalColor);
+                toggleFlicker(gameState.flickerOn);
+                checkOutputLimit();
+            } else {
+                bootSequence();
+            }
+            focusInput();
+            startCreditPopup();
+            startUserCounter();
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const command = input.value.trim();
+                if (command) {
+                    commandHistory.unshift(command);
+                    historyIndex = -1;
+                    processCommand(command);
+                    input.value = '';
+                }
+                focusInput();
+            } else if (e.key === 'ArrowUp') {
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    input.value = commandHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                if (historyIndex > -1) {
+                    historyIndex--;
+                    input.value = historyIndex === -1 ? '' : commandHistory[historyIndex];
+                }
+            }
+        });
+
+        document.getElementById('terminal').addEventListener('click', () => {
+            focusInput();
+        });
+
+        function bootSequence() {
+            const bootText = '[*] GhxstlyXterm v1.0 Booting...\n[+] Initializing core systems...\n[+] Network online\n[*] Ready\n';
+            typeText(bootText, () => {});
+        }
+
+        function typeText(text, callback) {
+            let i = 0;
+            const interval = setInterval(() => {
+                if (i < text.length) {
+                    output.textContent += text[i];
+                    output.scrollTop = output.scrollHeight;
+                    if (gameState.soundOn) playBeep();
+                    i++;
+                } else {
+                    clearInterval(interval);
+                    checkOutputLimit();
+                    callback();
+                }
+            }, 50);
+        }
+
+        function playBeep() {
+            const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+            audio.play();
+        }
+
+        function startCreditPopup() {
+            setInterval(() => {
+                if (Math.random() < 0.5) {
+                    creditPopup.style.display = 'block';
+                    setTimeout(() => {
+                        creditPopup.style.display = 'none';
+                    }, 2000);
+                }
+            }, 5000);
+        }
+
+        function startUserCounter() {
+            setInterval(() => {
+                if (Math.random() < 0.3) {
+                    userCount += Math.floor(Math.random() * 3) - 1;
+                    userCount = Math.max(1, userCount);
+                    userCounter.textContent = `[*] Users Online: ${userCount}`;
+                }
+            }, 3000);
+        }
+
+        function isValidColor(color) {
+            const s = new Option().style;
+            s.color = color;
+            return s.color !== '';
+        }
+
+        function checkOutputLimit() {
+            const lines = output.textContent.split('\n').length;
+            if (lines > MAX_LINES && !gameState.isLocked) {
+                gameState.isLocked = true;
+                output.textContent += `\n[!] System overload! Terminal limit reached (${MAX_LINES} lines). Click "Clear Terminal" to proceed.\n`;
+                output.scrollTop = output.scrollHeight;
+                input.disabled = true;
+                clearButton.style.display = 'inline-block';
+            }
+        }
+
+        function clearTerminal() {
+            output.textContent = '';
+            gameState.isLocked = false;
+            input.disabled = false;
+            clearButton.style.display = 'none';
+            output.textContent += '[*] System cleared!\n';
+            gameState.outputText = output.textContent;
+            focusInput();
+        }
+
+        function processCommand(cmd) {
+            if (gameState.isLocked) {
+                typeText(`\n[-] Terminal locked! Click "Clear Terminal" to unlock.\n`, () => {});
+                return;
+            }
+
+            const parts = cmd.toUpperCase().split(' ');
+            const action = parts[0];
+            typeText(`\n> ${cmd}\n`, () => {
+                if (cmd.toLowerCase() === ownerPassword) {
+                    isOwner = true;
+                    output.textContent += `[+] Admin override activated! Control protocols online.\n[*] Try COLOR, ALERT, FLICKER, BG, or LOCK.\n`;
+                } else if (isOwner) {
+                    switch (action) {
+                        case 'COLOR':
+                            if (parts[1]) {
+                                const newColor = parts[1].toLowerCase();
+                                if (isValidColor(newColor)) {
+                                    updateTerminalColor(newColor);
+                                    output.textContent += `[+] Terminal color hacked: ${newColor}!\n`;
+                                    gameState.terminalColor = newColor;
+                                } else {
+                                    output.textContent += `[-] Invalid color! Use names (e.g., RED) or hex (e.g., #FF00FF)!\n`;
+                                }
+                            } else {
+                                output.textContent += `[-] Inject a color! (e.g., COLOR RED)\n`;
+                            }
+                            break;
+                        case 'ALERT':
+                            if (parts.length > 1) {
+                                const message = cmd.substring(6).trim();
+                                output.textContent += `[!] SYSTEM ALERT: "${message}"\n`;
+                            } else {
+                                output.textContent += `[-] Inject an alert! (e.g., ALERT Breach!)\n`;
+                            }
+                            break;
+                        case 'FLICKER':
+                            if (parts[1] === 'ON') {
+                                toggleFlicker(true);
+                                output.textContent += `[+] Flicker protocol enabled!\n`;
+                                gameState.flickerOn = true;
+                            } else if (parts[1] === 'OFF') {
+                                toggleFlicker(false);
+                                output.textContent += `[+] Flicker protocol disabled!\n`;
+                                gameState.flickerOn = false;
+                            } else {
+                                output.textContent += `[-] Use FLICKER ON or FLICKER OFF!\n`;
+                            }
+                            break;
+                        case 'BG':
+                            if (parts[1]) {
+                                const newBg = parts[1].toLowerCase();
+                                if (isValidColor(newBg)) {
+                                    document.body.style.background = newBg;
+                                    output.textContent += `[+] Background hacked: ${newBg}!\n`;
+                                } else {
+                                    output.textContent += `[-] Invalid background! Use names or hex (e.g., BG #333)!\n`;
+                                }
+                            } else {
+                                output.textContent += `[-] Inject a background! (e.g., BG #333)\n`;
+                            }
+                            break;
+                        case 'LOCK':
+                            output.textContent += '[!] System locked by admin!\n';
+                            document.removeEventListener('keydown', processCommand);
+                            break;
+                        case 'UNLOCK':
+                            output.textContent += `[+] System unlocked!\n`;
+                            document.addEventListener('keydown', processCommand);
+                            break;
+                    }
+                }
+
+                if (gameState.miniGame) {
+                    handleMiniGame(cmd);
+                    return;
+                }
+
+                switch (action) {
+                    case 'HACK':
+                        if (parts[1] === 'LIGHTS') {
+                            startLightsHack();
+                        } else if (parts[1] === 'CAM') {
+                            startCamHack();
+                        } else {
+                            output.textContent += `[-] Breach failed! Try HACK LIGHTS or CAM!\n`;
+                        }
+                        break;
+                    case 'TOGGLE':
+                        if (parts[1] === 'LIGHTS') {
+                            if (gameState.access.lights) {
+                                gameState.lightsOn = !gameState.lightsOn;
+                                output.textContent += `[+] Lights ${gameState.lightsOn ? 'ON' : 'OFF'}!\n`;
+                            } else {
+                                output.textContent += `[-] Access denied! Hack lights first.\n`;
+                            }
+                        } else {
+                            output.textContent += `[-] Invalid toggle! Try TOGGLE LIGHTS.\n`;
+                        }
+                        break;
+                    case 'VIEW':
+                        if (parts[1] === 'CAM') {
+                            if (gameState.access.cam) {
+                                output.textContent += `[+] Camera feed: "Static... *flicker* ...all clear!"\n`;
+                            } else {
+                                output.textContent += `[-] Access denied! Hack cam first.\n`;
+                            }
+                        } else {
+                            output.textContent += `[-] Invalid view! Try VIEW CAM.\n`;
+                        }
+                        break;
+                    case 'INFO':
+                        if (parts[1] === 'ME') {
+                            output.textContent += `[+] Net ID: ${userId}\n[*] Status: ${isOwner ? 'Admin' : 'Runner'}\n[*] Access: Lights=${gameState.access.lights}, Cam=${gameState.access.cam}\n`;
+                        } else {
+                            output.textContent += `[-] Data breach! Try INFO ME.\n`;
+                        }
+                        break;
+                    case 'SOUND':
+                        gameState.soundOn = !gameState.soundOn;
+                        output.textContent += `[+] Sound ${gameState.soundOn ? 'enabled' : 'disabled'}!\n`;
+                        break;
+                    case 'HELP':
+                        output.textContent += `\n[*] Use the command tab!\n${isOwner ? '[*] Admin Protocols: COLOR <color>, ALERT <text>, FLICKER <on/off>, BG <color>, LOCK, UNLOCK' : ''}\n`;
+                        break;
+                    default:
+                        if (!isOwner || (isOwner && !['COLOR', 'ALERT', 'FLICKER', 'BG', 'LOCK', 'UNLOCK'].includes(action))) {
+                            output.textContent += `[-] Unknown vector: "${cmd}". Try HELP!\n`;
+                        }
+                }
+                gameState.outputText = output.textContent;
+                output.scrollTop = output.scrollHeight;
+            });
+        }
+
+        function startLightsHack() {
+            const sequence = ['A', 'S', 'D'][Math.floor(Math.random() * 3)];
+            gameState.miniGame = { type: 'lights', sequence: sequence, step: 0 };
+            output.textContent += `[+] Overriding lights... Press '${sequence}' to sync\n`;
+        }
+
+        function startCamHack() {
+            const number = Math.floor(Math.random() * 10);
+            gameState.miniGame = { type: 'cam', number: number, guesses: 3 };
+            output.textContent += `[+] Tapping camera feed... Guess a number (0-9, 3 guesses left)\n`;
+        }
+
+        function handleMiniGame(cmd) {
+            const miniGame = gameState.miniGame;
+            if (!miniGame) return;
+
+            switch (miniGame.type) {
+                case 'lights':
+                    if (cmd.toUpperCase() === miniGame.sequence) {
+                        gameState.access.lights = true;
+                        output.textContent += `[+] Lights overridden! Use TOGGLE LIGHTS.\n`;
+                        gameState.miniGame = null;
+                    } else {
+                        output.textContent += `[-] Sync failed! Press '${miniGame.sequence}' to retry.\n`;
+                    }
+                    break;
+                case 'cam':
+                    const guess = parseInt(cmd);
+                    if (isNaN(guess) || guess < 0 || guess > 9) {
+                        output.textContent += `[-] Invalid guess! Enter a number (0-9, ${miniGame.guesses} guesses left)\n`;
+                    } else if (guess === miniGame.number) {
+                        gameState.access.cam = true;
+                        output.textContent += `[+] Camera tapped! Use VIEW CAM.\n`;
+                        gameState.miniGame = null;
+                    } else {
+                        miniGame.guesses--;
+                        if (miniGame.guesses > 0) {
+                            output.textContent += `[-] Wrong! ${guess > miniGame.number ? 'Too high' : 'Too low'}. ${miniGame.guesses} guesses left.\n`;
+                        } else {
+                            output.textContent += `[-] Feed locked! Out of guesses.\n`;
+                            gameState.miniGame = null;
+                        }
+                    }
+                    break;
+            }
+            gameState.outputText = output.textContent;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function saveGame() {
+            localStorage.setItem('ghxstlyXtermSave', JSON.stringify(gameState));
+            typeText(`\n[*] Session dumped to core!\n`, () => {
+                gameState.outputText = output.textContent;
+                focusInput();
+            });
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem('ghxstlyXtermSave');
+            if (saved) {
+                gameState = JSON.parse(saved);
+                output.textContent = gameState.outputText;
+                updateTerminalColor(gameState.terminalColor);
+                toggleFlicker(gameState.flickerOn);
+                typeText(`\n[*] Session pulled from core!\n`, () => {
+                    gameState.outputText = output.textContent;
+                    focusInput();
+                });
+            } else {
+                typeText(`\n[-] No session in core!\n`, () => {
+                    gameState.outputText = output.textContent;
+                    focusInput();
+                });
+            }
+        }
+
+        function updateTerminalColor(color) {
+            const elementsToUpdate = [
+                document.body,
+                document.getElementById('prompt'),
+                document.getElementById('input'),
+                document.getElementById('output'),
+                document.getElementById('commandList'),
+                document.getElementById('commandTab'),
+                document.getElementById('userCounter'),
+                document.getElementById('creditPopup')
+            ];
+            elementsToUpdate.forEach(el => el.style.color = color);
+            document.getElementById('input').style.caretColor = color;
+            document.getElementById('input').style.borderColor = color;
+            document.getElementById('output').style.borderColor = color;
+            document.getElementById('commandList').style.borderColor = color;
+            document.getElementById('commandTab').style.borderColor = color;
+            document.getElementById('creditPopup').style.borderColor = color;
+            document.querySelectorAll('button').forEach(btn => {
+                btn.style.color = color;
+                btn.style.borderColor = color;
+            });
+            clearButton.style.color = '#f00';
+            clearButton.style.borderColor = '#f00';
+        }
+
+        function toggleFlicker(on) {
+            gameContainer.style.animation = on ? 'flicker 0.1s infinite alternate' : 'none';
+        }
+
+        function toggleCommands() {
+            commandList.classList.toggle('active');
+            commandTab.textContent = commandList.classList.contains('active') ? 'Hide Commands' : 'Show Commands';
+        }
+
+        function focusInput() {
+            if (!gameState.isLocked) {
+                input.focus();
+                input.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    </script>
+</body>
